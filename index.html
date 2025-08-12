@@ -3,11 +3,16 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Shot Chart Studio — Canvas Lite</title>
+  <title>Shot Chart Studio — Canvas Lite (PWA)</title>
+  <meta name="theme-color" content="#0b1220">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <style>
     :root{--bg:#0b1220;--panel:#0f172a;--ink:#e2e8f0;--mut:#94a3b8;--line:#334155;--blue:#38bdf8;--red:#ef4444;--green:#22c55e;--accent:#f97316}
     html,body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Arial}
-    .top{position:sticky;top:0;z-index:5;background:var(--bg);display:flex;gap:8px;padding:8px;border-bottom:1px solid #1f2937}
+    .top{position:sticky;top:0;z-index:5;background:var(--bg);display:flex;gap:8px;padding:8px;border-bottom:1px solid #1f2937;flex-wrap:wrap}
     .btn{background:#111a2d;border:1px solid var(--line);border-radius:10px;color:var(--ink);padding:6px 10px;cursor:pointer}
     .btn:hover{background:#162036}
     .row{display:flex;gap:8px;align-items:center}
@@ -30,7 +35,6 @@
     .modal{position:fixed;inset:0;display:none;place-items:center}
     .card{background:#0b1326;border:1px solid var(--line);border-radius:12px;padding:10px;max-width:720px;width:92vw;max-height:86vh;overflow:auto}
     #shotMenu{position:absolute;display:none;z-index:5}
-    /* Print-only area (fallback; iframe-based printing is default) */
     #printArea{display:none}
     @media print{
       body{background:#fff !important;color:#111}
@@ -49,18 +53,20 @@
     <button class="btn" id="navStats">Stats</button>
     <button class="btn" id="navSched">Schedule</button>
     <span style="flex:1"></span>
+    <button class="btn" id="btnExport">Export</button>
+    <button class="btn" id="btnImport">Import</button>
+    <button class="btn" id="btnInstall" style="display:none">Install App</button>
     <span class="pill">Shot Chart Studio — Canvas Lite</span>
   </div>
 
-  <!-- Tracker -->
+  <input type="file" id="impFile" accept="application/json" style="display:none">
+
   <section id="pgTrack">
     <div class="panel row" style="flex-wrap:wrap">
       <button class="btn" id="btnRoster">Manage Roster</button>
       <label class="row">
         <span class="hint">Game:</span>
-        <select id="gameSel" class="sel" style="max-width:260px">
-          <option value="">— Select —</option>
-        </select>
+        <select id="gameSel" class="sel" style="max-width:260px"><option value="">— Select —</option></select>
       </label>
       <button class="btn" id="btnSave">Save & Apply</button>
       <button class="btn" id="btnClear">Clear</button>
@@ -70,7 +76,7 @@
 
     <div class="grid">
       <div class="panel players">
-        <h3 style="margin:6px 0 10px">On‑Court (5)</h3>
+        <h3 style="margin:6px 0 10px">On-Court (5)</h3>
         <div id="five"></div>
       </div>
 
@@ -105,7 +111,6 @@
     </div>
   </section>
 
-  <!-- Stats -->
   <section id="pgStats" style="display:none">
     <div class="panel">
       <div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:8px">
@@ -135,7 +140,6 @@
     </div>
   </section>
 
-  <!-- Schedule -->
   <section id="pgSched" style="display:none">
     <div class="panel">
       <div class="row" style="justify-content:space-between">
@@ -151,7 +155,6 @@
     </div>
   </section>
 
-  <!-- Roster Modal -->
   <div class="backdrop" id="roBack"></div>
   <div class="modal" id="roModal">
     <div class="card">
@@ -169,12 +172,10 @@
     </div>
   </div>
 
-  <!-- Print Area (only visible during print) -->
   <div id="printArea"></div>
 
   <script>
   "use strict";
-  // ===== State =====
   const S = { ro:[], on:[null,null,null,null,null], tap:null, sch:[], gd:{}, cur:null, rule:'ncaa' };
   const C = [
     {k:'ast', l:'AST'},{k:'dreb',l:'DREB'},{k:'oreb',l:'OREB'},
@@ -191,27 +192,25 @@
   const tabZones=$('tabZones'), tabLog=$('tabLog');
   const navTrack=$('navTrack'), navStats=$('navStats'), navSched=$('navSched'), pgTrack=$('pgTrack'), pgStats=$('pgStats'), pgSched=$('pgSched'), back=$('back'), backStats=$('backStats');
   const gName=$('gName'), gDate=$('gDate'), addGame=$('addGame'), schedList=$('schedList');
-  // Stats els
   const gamesChk=$('gamesChk'), selAll=$('selAll'), clrAll=$('clrAll'), statsWho=$('statsWho'), recalc=$('recalc');
   const sPTS=$('sPTS'), sFG=$('sFG'), s2=$('s2'), s3=$('s3'), sFT=$('sFT'), sO=$('sO');
   const statsTableWrap=$('statsTableWrap');
   const btnPrintStats=$('btnPrintStats'), btnPrintPlayer=$('btnPrintPlayer');
   const printArea=$('printArea');
+  const btnExport=$('btnExport'), btnImport=$('btnImport'), impFile=$('impFile'), btnInstall=$('btnInstall');
 
-  // ===== Utils =====
   const uid=()=>Math.random().toString(36).slice(2,9);
   function save(){ try{ localStorage.setItem('scs_c', JSON.stringify(S)); }catch(e){} }
   function load(){ try{ const s=localStorage.getItem('scs_c'); if(s) Object.assign(S, JSON.parse(s)); }catch(e){} }
-  function esc(s){ return (String(s||'')).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c])); }
+  function esc(s){ return (String(s||'')).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",""":"&quot;","'":"&#39;"}[c])); }
   function ini(n){ return (n||'').split(' ').map(x=>x[0]).join('').slice(0,2).toUpperCase(); }
   function today(){ return new Date().toISOString().slice(0,10); }
   function fmtDate(x){ if(!x) return ''; if(/^\d{4}-\d{2}-\d{2}$/.test(x)) return x; try{ return new Date(x).toISOString().slice(0,10); }catch(e){ return x; } }
 
-  // ===== Court geometry =====
   function M(){
     const W=court.width, H=court.height, mx=W/2, ry=H-90;
     const lw=W*0.28, lh=H*0.42, ft=ry-lh+10, R=lw*0.38;
-    const rhs=(lh-10)+R; // HS base radius from FT circle touching
+    const rhs=(lh-10)+R;
     const SCALE={hs:1, ncaa:22.146/19.75, nba:23.75/19.75};
     const r3 = rhs * (SCALE[S.rule||'ncaa']||1);
     const co = {hs:H*0.205, ncaa:H*0.235, nba:H*0.26}[S.rule||'ncaa'];
@@ -228,14 +227,12 @@
     return 'Mid Center';
   }
 
-  // ===== Roster helpers =====
   const getP=id=>S.ro.find(p=>p.id===id);
   const ensureP=p=>{ p.stats=p.stats||{ast:0,dreb:0,oreb:0,tov:0,stl:0,blk:0,fta:0,ftm:0,_pts:0}; p.shots=p.shots||[]; return p};
   function setSlot(i,id){ S.on[i]=id||null; save(); render(); buildStatsWho(); }
   function adj(pid,k,d){ const p=getP(pid); if(!p) return; ensureP(p); p.stats[k]=Math.max(0,(p.stats[k]||0)+d); if(k==='ftm'){ p.stats._pts+=d; if(p.stats._pts<0) p.stats._pts=0 } save(); render(); }
   function comp(p){ ensureP(p); const sh=p.shots||[]; const m=sh.filter(s=>s.make).length, a=sh.length; return {m,a,pts:(p.stats._pts||0)} }
 
-  // ===== UI: Player Slots =====
   function renderSlots(){
     five.innerHTML='';
     for(let i=0;i<5;i++){
@@ -266,28 +263,26 @@
       s.append(chips);
       five.append(s)
     }
-    viewSel.innerHTML = '<option value="on5">On‑court 5</option><option value="team">Team</option>' +
+    viewSel.innerHTML = '<option value="on5">On-court 5</option><option value="team">Team</option>' +
       S.ro.map(r=>`<option value="p:${r.id}">${esc(r.name)}${r.number?' #'+r.number:''}</option>`).join('')
   }
   function arm(pid,type,el){ S.tap={pid,type}; document.querySelectorAll('.t').forEach(e=>e.classList.remove('arm')); el.classList.add('arm') }
 
-  // ===== Court draw =====
   let hits=[], selShot=null;
   function drawCourt(){
     const m=M();
+    const css = getComputedStyle(document.documentElement);
     ctx.clearRect(0,0,m.W,m.H);
     ctx.fillStyle='#060a13'; ctx.fillRect(0,0,m.W,m.H);
     ctx.strokeStyle='#1f2937'; ctx.lineWidth=2; ctx.strokeRect(8,8,m.W-16,m.H-16);
     ctx.fillStyle='rgba(255,255,255,.03)'; ctx.fillRect(m.mx-m.lw/2,m.ry-m.lh,m.lw,m.lh);
     ctx.strokeStyle='#1f2937'; ctx.strokeRect(m.mx-m.lw/2,m.ry-m.lh,m.lw,m.lh);
     ctx.beginPath(); ctx.arc(m.mx,m.ft,m.lw*0.38,0,Math.PI,true); ctx.stroke();
-    ctx.beginPath(); ctx.arc(m.mx,m.ry,7,0,Math.PI*2); ctx.strokeStyle=getComputedStyle(document.documentElement).getPropertyValue('--accent')||'#f97316'; ctx.lineWidth=3; ctx.stroke();
+    ctx.beginPath(); ctx.arc(m.mx,m.ry,7,0,Math.PI*2); ctx.strokeStyle=css.getPropertyValue('--accent')||'#f97316'; ctx.lineWidth=3; ctx.stroke();
     ctx.lineWidth=2; ctx.strokeStyle='#1f2937'; ctx.beginPath(); ctx.moveTo(m.mx-30,m.ry+10); ctx.lineTo(m.mx+30,m.ry+10); ctx.stroke();
-    // corners
-    ctx.beginPath(); ctx.strokeStyle=getComputedStyle(document.documentElement).getPropertyValue('--blue')||'#38bdf8';
+    ctx.beginPath(); ctx.strokeStyle=css.getPropertyValue('--blue')||'#38bdf8';
     const cy=m.ry-m.co; ctx.moveTo(30,cy); ctx.lineTo(30,m.H-8); ctx.moveTo(m.W-30,cy); ctx.lineTo(m.W-30,m.H-8); ctx.stroke();
-    // arc
-    ctx.save(); ctx.strokeStyle=getComputedStyle(document.documentElement).getPropertyValue('--blue')||'#38bdf8'; ctx.lineWidth=Math.max(2.5,3*(m.W/820)); ctx.lineCap='round';
+    ctx.save(); ctx.strokeStyle=css.getPropertyValue('--blue')||'#38bdf8'; ctx.lineWidth=Math.max(2.5,3*(m.W/820)); ctx.lineCap='round';
     const a=Math.asin(Math.min(1,m.co/Math.max(1,m.r3)));
     ctx.beginPath(); ctx.arc(m.mx,m.ry,m.r3,Math.PI+a,-Math.PI/2,true); ctx.stroke();
     ctx.beginPath(); ctx.arc(m.mx,m.ry,m.r3,-Math.PI/2,-a,true); ctx.stroke();
@@ -301,12 +296,13 @@
     return arr
   }
   function drawShots(){
+    const css = getComputedStyle(document.documentElement);
     const arr=pickList();
     for(const p of arr){
       for(let i=0;i<p.shots.length;i++){
         const s=p.shots[i];
-        if(s.make){ ctx.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--green')||'#22c55e'; ctx.beginPath(); ctx.arc(s.x,s.y,6,0,Math.PI*2); ctx.fill() }
-        else { ctx.strokeStyle=getComputedStyle(document.documentElement).getPropertyValue('--red')||'#ef4444'; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(s.x-6,s.y-6); ctx.lineTo(s.x+6,s.y+6); ctx.moveTo(s.x+6,s.y-6); ctx.lineTo(s.x-6,s.y+6); ctx.stroke(); ctx.lineWidth=2 }
+        if(s.make){ ctx.fillStyle=css.getPropertyValue('--green')||'#22c55e'; ctx.beginPath(); ctx.arc(s.x,s.y,6,0,Math.PI*2); ctx.fill() }
+        else { ctx.strokeStyle=css.getPropertyValue('--red')||'#ef4444'; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(s.x-6,s.y-6); ctx.lineTo(s.x+6,s.y+6); ctx.moveTo(s.x+6,s.y-6); ctx.lineTo(s.x-6,s.y+6); ctx.stroke(); ctx.lineWidth=2 }
         hits.push({pid:p.id,i,x:s.x,y:s.y})
       }
     }
@@ -335,33 +331,27 @@
   function renderSide(){
     const v=viewSel.value; let map={}, rows=[], tm=t=>new Date(t).toLocaleTimeString();
     if(v==='on5'){
-      const seen=new Set(); for(const id of S.on){ if(!id||seen.has(id)) continue; const p=getP(id); if(!p) continue; for(const s of p.shots){ const z=s.zone; map[z]=map[z]||{m:0,a:0}; map[z].a++; if(s.make) map[z].m++; rows.push(`<div class=\"pill\">${esc(p.name)} — ${tm(s.t)} — ${s.make?'Make':'Miss'} ${s.three?'3PT':'2PT'} — ${s.zone}</div>`)} seen.add(id) }
+      const seen=new Set(); for(const id of S.on){ if(!id||seen.has(id)) continue; const p=getP(id); if(!p) continue; for(const s of p.shots){ const z=s.zone; map[z]=map[z]||{m:0,a:0}; map[z].a++; if(s.make) map[z].m++; rows.push(`<div class="pill">${esc(p.name)} — ${tm(s.t)} — ${s.make?'Make':'Miss'} ${s.three?'3PT':'2PT'} — ${s.zone}</div>`)} seen.add(id) }
     } else if(v==='team'){
-      for(const p of S.ro){ for(const s of (p.shots||[])){ const z=s.zone; map[z]=map[z]||{m:0,a:0}; map[z].a++; if(s.make) map[z].m++; rows.push(`<div class=\"pill\">${esc(p.name)} — ${tm(s.t)} — ${s.make?'Make':'Miss'} ${s.three?'3PT':'2PT'} — ${s.zone}</div>`) } }
+      for(const p of S.ro){ for(const s of (p.shots||[])){ const z=s.zone; map[z]=map[z]||{m:0,a:0}; map[z].a++; if(s.make) map[z].m++; rows.push(`<div class="pill">${esc(p.name)} — ${tm(s.t)} — ${s.make?'Make':'Miss'} ${s.three?'3PT':'2PT'} — ${s.zone}</div>`) } }
     } else if(v&&v.startsWith('p:')){
-      const p=getP(v.slice(2)); if(p){ for(const s of p.shots){ const z=s.zone; map[z]=map[z]||{m:0,a:0}; map[z].a++; if(s.make) map[z].m++; rows.push(`<div class=\"pill\">${tm(s.t)} — ${s.make?'Make':'Miss'} ${s.three?'3PT':'2PT'} — ${s.zone}</div>`) } }
+      const p=getP(v.slice(2)); if(p){ for(const s of p.shots){ const z=s.zone; map[z]=map[z]||{m:0,a:0}; map[z].a++; if(s.make) map[z].m++; rows.push(`<div class="pill">${tm(s.t)} — ${s.make?'Make':'Miss'} ${s.three?'3PT':'2PT'} — ${s.zone}</div>`) } }
     }
     zones.innerHTML=zonesTbl(map);
     log.innerHTML=rows.reverse().join('')||'<div class="pill">No shots yet.</div>'
   }
 
-  // ===== Shots =====
   function addShot(pid,x,y,mk){ const p=getP(pid); if(!p) return; ensureP(p); const t=is3(x,y), z=zone(x,y,t); p.shots.push({x,y,make:mk,three:t,zone:z,t:Date.now()}); if(mk) p.stats._pts+=t?3:2; save(); render() }
   function remShot(pid,i){ const p=getP(pid); if(!p) return; const s=p.shots[i]; if(!s) return; if(s.make){ p.stats._pts-=s.three?3:2; if(p.stats._pts<0) p.stats._pts=0 } p.shots.splice(i,1); save(); hideMenu(); render() }
 
-  // ===== Clear / Save per game =====
   function clearCur(){ for(const r of S.ro){ r.shots=[]; r.stats={ast:0,dreb:0,oreb:0,tov:0,stl:0,blk:0,fta:0,ftm:0,_pts:0} } saveCur(); save(); render() }
-  btnClear.onclick=clearCur;
   const deep=o=>JSON.parse(JSON.stringify(o));
   function snap(){ const d={}; for(const r of S.ro){ d[r.id]={name:r.name,number:r.number,shots:deep(r.shots||[]),stats:deep(r.stats||{})} } return d }
-  function saveCur(){ const id=S.cur; if(!id) return; const g=S.sch.find(x=>x.id===id); if(!g) return; S.gd[id]={name:g.name,date:g.date,data:snap(),on:S.on.slice()}; save() }
+  function saveCur(){ const id=S.cur; if(!id) return; const g=S.sch.find(x=>x.id===id); if(!g) return; S.gd[id]={name:g.name,date=g.date,data:snap(),on:S.on.slice()}; save() }
   function loadGame(id){ const gd=S.gd[id]; for(const r of S.ro){ const row=(gd&&gd.data)?gd.data[r.id]:null; if(row){ r.shots=deep(row.shots||[]); r.stats=Object.assign({ast:0,dreb:0,oreb:0,tov:0,stl:0,blk:0,fta:0,ftm:0,_pts:0},deep(row.stats||{})) } else { r.shots=[]; r.stats={ast:0,dreb:0,oreb:0,tov:0,stl:0,blk:0,fta:0,ftm:0,_pts:0} } }
     if(gd&&Array.isArray(gd.on)) S.on=gd.on.slice(); save(); render() }
   function switchGame(id){ saveCur(); S.cur=id; loadGame(id); gamesDD(); schedRender(); buildStatsWho(); renderGamesChecks() }
-  gameSel.onchange=()=>switchGame(gameSel.value||null);
-  btnSave.onclick=()=>{ saveCur(); alert('Saved to game. Open later from the dropdown.') };
 
-  // ===== Schedule =====
   function gamesDD(){ gameSel.innerHTML='<option value="">— Select —</option>' + S.sch.map(g=>`<option value="${g.id}" ${g.id===S.cur?'selected':''}>${esc(g.name)} — ${fmtDate(g.date)}</option>`).join('') }
   function schedRender(){
     schedList.innerHTML='';
@@ -401,7 +391,6 @@
     save(); gName.value=''; schedRender(); gamesDD(); renderGamesChecks()
   };
 
-  // ===== Roster modal =====
   function roRender(){
     roBody.innerHTML='';
     S.ro.forEach(p=>{
@@ -417,7 +406,6 @@
   btnRoster.onclick=roOpen; roBack.onclick=roClose; doneP.onclick=roClose;
   addP.onclick=()=>{ if(S.ro.length>=15){ alert('Max 15 players'); return } S.ro.push({id:uid(),name:'',number:'',stats:{ast:0,dreb:0,oreb:0,tov:0,stl:0,blk:0,fta:0,ftm:0,_pts:0},shots:[]}); save(); roRender(); buildStatsWho() };
 
-  // ===== Tabs / Nav =====
   tabZones.onclick=()=>{ zones.style.display='block'; log.style.display='none'; tabZones.classList.add('on'); tabLog.classList.remove('on') };
   tabLog.onclick = ()=>{ zones.style.display='none'; log.style.display='block'; tabLog.classList.add('on'); tabZones.classList.remove('on') };
   navTrack.onclick=()=>{ pgTrack.style.display='block'; pgStats.style.display='none'; pgSched.style.display='none' };
@@ -427,19 +415,20 @@
   backStats.onclick=()=>navTrack.click();
   rule.onchange=()=>{ S.rule=rule.value; save(); renderCourt() };
   viewSel.onchange=()=>{ renderCourt(); renderSide() };
+  gameSel.onchange=()=>switchGame(gameSel.value||null);
+  btnSave.onclick=()=>{ saveCur(); alert('Saved to game. Open later from the dropdown.') };
+  btnClear.onclick=()=>{ clearCur(); };
 
-  // ===== Layout =====
   function size(){ const dpr=window.devicePixelRatio||1; const rect=court.getBoundingClientRect(); const w=Math.max(420,rect.width); const r=520/820; court.width=Math.round(w*dpr); court.height=Math.round(w*r*dpr); renderCourt() }
   window.addEventListener('resize',size);
 
   function ensureDefaults(){
-    if(S.ro.length===0){ S.ro=['Player 1','Player 2','Player 3','Player 4','Player 5'].map(n=>({id:uid(),name:n,number:'',stats:{ast:0,dreb:0,oreb:0,tov:0,stl:0,blk:0,fta:0,ftm:0,_pts:0},shots:[]})); S.on=S.ro.slice(0,5).map(r=>r.id) }
+    if(S.ro.length===0){ S.ro=['Player 1','Player 2','Player 3','Player 4','Player 5'].map(n=>({id:uid(),name=n,number:'',stats:{ast:0,dreb:0,oreb:0,tov:0,stl:0,blk:0,fta:0,ftm:0,_pts:0},shots:[]})); S.on=S.ro.slice(0,5).map(r=>r.id) }
     if(S.sch.length===0){ const id=uid(); S.sch=[{id,name:'Game 1',date:today()}]; S.cur=id }
   }
 
   function render(){ renderSlots(); renderCourt(); renderSide() }
 
-  // ===== Stats helpers/Page =====
   function renderGamesChecks(){
     gamesChk.innerHTML='';
     if(S.sch.length===0){ gamesChk.innerHTML='<span class="pill">No games</span>'; return }
@@ -489,23 +478,17 @@
     statsTableWrap.innerHTML=html;
   }
 
-  // ===== Printing (iframe approach for sandboxed iframes like Sites/Canvas) =====
   function printOpen(html, title='Shot Chart Studio'){
     const css = `body{font:14px system-ui,Segoe UI,Roboto,Arial;color:#111;padding:16px} h1,h2,h3{margin:.2em 0} table{width:100%;border-collapse:collapse} th,td{border:1px solid #ddd;padding:4px 6px;text-align:left} img{max-width:100%;height:auto;border:1px solid #ddd;border-radius:8px}`;
-    const docHTML = `<!DOCTYPE html><html><head><meta charset='utf-8'><title>${esc(title)}</title><style>${css}</style></head><body>${html}<script>(function(){function go(){try{window.focus();window.print();}catch(e){}}var imgs=[].slice.call(document.images||[]);if(!imgs.length){setTimeout(go,50);return;}var n=0;imgs.forEach(function(im){var done=function(){if(++n>=imgs.length)setTimeout(go,50);};if(im.complete) done(); else {im.onload=done; im.onerror=done;}});})();<\/script></body></html>`;
-
-    // Prefer Blob URL (reliable in Chrome/Sites). Fallback to data: URL, then inline area
+    const docHTML = `<!DOCTYPE html><html><head><meta charset='utf-8'><title>${esc(title)}</title><style>${css}</style></head><body>${html}<script>(function(){function go(){try{window.focus();window.print();}catch(e){}}var imgs=[].slice.call(document.images||[]);if(!imgs.length){setTimeout(go,50);return;}var n=0;imgs.forEach(function(im){var done=function(){if(++n>=imgs.length)setTimeout(go,50);};if(im.complete) done(); else {im.onload=done; im.onerror=done;}});})();</script></body></html>`;
     let url = '';
     try { const blob = new Blob([docHTML], {type:'text/html'}); url = URL.createObjectURL(blob); } catch(e) {
       try { url = 'data:text/html;charset=utf-8,' + encodeURIComponent(docHTML); } catch(_) { url = ''; }
     }
-
     if (url) {
       const win = window.open(url, '_blank');
-      if (win) return; // popup allowed
+      if (win) return;
     }
-
-    // Fallback: inline print area in current page
     const area = document.getElementById('printArea');
     if (area) {
       area.innerHTML = html;
@@ -515,7 +498,6 @@
     }
   }
 
-  // Buttons → print
   if(btnPrintChart){ btnPrintChart.addEventListener('click', ()=>{
     try{
       const title=`Shot Chart — ${viewSel.options[viewSel.selectedIndex]?.text||'View'}`;
@@ -536,11 +518,12 @@
     const whoLabel = (who==='team') ? 'Team' : (getP(who)?.name||'Player');
     let chartImg='';
     if(who!=='team'){
-      const pid=who; const saved=deep(S.ro.map(r=>({id:r.id,shots:r.shots,stats:r.stats})));
+      const pid=who; const saved=JSON.parse(JSON.stringify(S.ro.map(r=>({id:r.id,shots:r.shots,stats:r.stats}))));
       for(const r of S.ro){ r.shots=[] }
       const tgt=S.ro.find(r=>r.id===pid); if(tgt){ tgt.shots = gatherPlayerShotsForGames(pid, ids) }
       const oldView=viewSel.value; viewSel.value=`p:${pid}`; renderCourt(); chartImg=court.toDataURL('image/png');
-      S.ro.forEach(r=>{ const bk=saved.find(x=>x.id===r.id); if(bk){ r.shots=bk.shots; r.stats=bk.stats } }); viewSel.value=oldView; renderCourt();
+      S.ro.forEach((r,i)=>{ const bk=saved[i]; if(bk && r.id===bk.id){ r.shots=bk.shots; r.stats=bk.stats } });
+      viewSel.value=oldView; renderCourt();
     }
     const gamesList = ids.map(id=>{ const g=S.sch.find(x=>x.id===id); return g?`${esc(g.name)} ${fmtDate(g.date)}`:'' }).filter(Boolean).join(', ');
     const head=`<h2>Stats — ${esc(whoLabel)}</h2><div><strong>Games:</strong> ${gamesList||'—'}</div>`;
@@ -550,13 +533,70 @@
 
   if(btnPrintPlayer){ btnPrintPlayer.addEventListener('click', ()=>{ if(statsWho.value==='team'){ alert('Choose a player first.'); return } btnPrintStats.click(); }); }
 
-  function boot(){ load(); ensureDefaults(); rule.value=S.rule||'ncaa'; gamesDD(); size(); if(S.cur) loadGame(S.cur); else render(); save(); buildStatsWho() }
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', boot);
-  } else {
-    try { boot(); } catch (e) { console.error(e); alert('Init error: '+ (e.message||e)); }
+  // Export / Import
+  btnExport.addEventListener('click', ()=>{
+    try{
+      const data = { ro:S.ro, sch:S.sch, gd:S.gd };
+      const blob = new Blob([JSON.stringify(data)], {type:'application/json'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'shot-chart-studio-data.json';
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }catch(e){ alert('Export failed: '+(e.message||e)); }
+  });
+  btnImport.addEventListener('click', ()=> impFile.click());
+  impFile.addEventListener('change', ()=>{
+    const f = impFile.files[0];
+    if(!f) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try{
+        const d = JSON.parse(reader.result);
+        if(d.ro) S.ro = d.ro;
+        if(d.sch) S.sch = d.sch;
+        if(d.gd) S.gd = d.gd;
+        if(!S.cur || !S.sch.find(x=>x.id===S.cur)) S.cur = S.sch[0]?.id || null;
+        S.on = [null,null,null,null,null];
+        if(S.ro.length) S.on = S.ro.slice(0,5).map(p=>p.id);
+        save(); gamesDD(); buildStatsWho(); render(); schedRender(); renderGamesChecks();
+        alert('Import complete.');
+      }catch(err){ alert('Import failed: '+(err.message||err)); }
+      impFile.value='';
+    };
+    reader.readAsText(f);
+  });
+
+  // PWA install support
+  let deferredPrompt = null;
+  const inIframe = (function(){ try { return window.self !== window.top; } catch(e){ return true; } })();
+  window.addEventListener('beforeinstallprompt', (e)=>{
+    e.preventDefault();
+    deferredPrompt = e;
+    btnInstall.style.display = 'inline-block';
+  });
+  btnInstall.addEventListener('click', async ()=>{
+    try{
+      if(inIframe){ window.open(window.location.href, '_blank'); return; }
+      if(deferredPrompt){
+        deferredPrompt.prompt();
+        await deferredPrompt.userChoice;
+        deferredPrompt = null;
+      } else if (window.matchMedia('(display-mode: standalone)').matches) {
+        alert('Already installed.');
+      } else {
+        alert('On iPhone/iPad: Share → Add to Home Screen');
+      }
+    }catch(e){ alert('Install prompt failed: '+(e.message||e)); }
+  });
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', ()=>{
+      navigator.serviceWorker.register('./sw.js').catch(()=>{});
+    });
   }
+
+  function boot(){ load(); ensureDefaults(); rule.value=S.rule||'ncaa'; gamesDD(); size(); if(S.cur) loadGame(S.cur); else render(); save(); buildStatsWho() }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
   </script>
 </body>
 </html>
-
