@@ -589,10 +589,7 @@
       }
     }catch(e){ alert('Install prompt failed: '+(e.message||e)); }
   });
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', ()=>{
-      navigator.serviceWorker.register('./sw.js').catch(()=>{});
-    });
+  );
   }
 
   function boot(){ load(); ensureDefaults(); rule.value=S.rule||'ncaa'; gamesDD(); size(); if(S.cur) loadGame(S.cur); else render(); save(); buildStatsWho() }
