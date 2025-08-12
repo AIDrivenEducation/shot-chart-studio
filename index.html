@@ -480,7 +480,7 @@
 
   function printOpen(html, title='Shot Chart Studio'){
     const css = `body{font:14px system-ui,Segoe UI,Roboto,Arial;color:#111;padding:16px} h1,h2,h3{margin:.2em 0} table{width:100%;border-collapse:collapse} th,td{border:1px solid #ddd;padding:4px 6px;text-align:left} img{max-width:100%;height:auto;border:1px solid #ddd;border-radius:8px}`;
-    const docHTML = `<!DOCTYPE html><html><head><meta charset='utf-8'><title>${esc(title)}</title><style>${css}</style></head><body>${html}<script>(function(){function go(){try{window.focus();window.print();}catch(e){}}var imgs=[].slice.call(document.images||[]);if(!imgs.length){setTimeout(go,50);return;}var n=0;imgs.forEach(function(im){var done=function(){if(++n>=imgs.length)setTimeout(go,50);};if(im.complete) done(); else {im.onload=done; im.onerror=done;}});})();</script></body></html>`;
+    const docHTML = `<!DOCTYPE html><html><head><meta charset='utf-8'><title>${esc(title)}</title><style>${css}</style></head><body>${html}<script>(function(){function go(){try{window.focus();window.print();}catch(e){}}var imgs=[].slice.call(document.images||[]);if(!imgs.length){setTimeout(go,50);return;}var n=0;imgs.forEach(function(im){var done=function(){if(++n>=imgs.length)setTimeout(go,50);};if(im.complete) done(); else {im.onload=done; im.onerror=done;}});})();<\/script></body></html>`;
     let url = '';
     try { const blob = new Blob([docHTML], {type:'text/html'}); url = URL.createObjectURL(blob); } catch(e) {
       try { url = 'data:text/html;charset=utf-8,' + encodeURIComponent(docHTML); } catch(_) { url = ''; }
