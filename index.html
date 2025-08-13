@@ -1,0 +1,272 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Shot Chart Studio — PWA</title><meta name="theme-color" content="#0b1220"><link rel="manifest" href="manifest.webmanifest">
+<style>:root{--bg:#0b1220;--panel:#0f172a;--ink:#e2e8f0;--mut:#94a3b8;--line:#334155;--blue:#38bdf8;--red:#ef4444;--green:#22c55e;--accent:#f97316}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Arial}
+.top{position:sticky;top:0;z-index:5;background:var(--bg);display:flex;gap:8px;padding:8px;border-bottom:1px solid #1f2937;flex-wrap:wrap}
+.btn{background:#111a2d;border:1px solid var(--line);border-radius:10px;color:var(--ink);padding:6px 10px;cursor:pointer}.btn:hover{background:#162036}
+.row{display:flex;gap:8px;align-items:center}.pill{background:#111a2d;border:1px solid var(--line);border-radius:999px;padding:4px 10px;white-space:nowrap}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:10px;margin:10px}
+.grid{display:grid;grid-template-columns:1fr 360px;gap:10px;align-items:start}
+.players{position:sticky;top:54px;max-height:calc(100vh - 70px);overflow:auto}
+.slot{background:#0b1326;border:1px solid #1f2436;border-radius:12px;padding:8px}
+.slotHead{display:flex;gap:8px;align-items:center}
+.avatar{width:36px;height:36px;border-radius:10px;background:#0d162b;border:1px solid #263041;display:grid;place-items:center;font-weight:700}
+.sel,.inp{background:#0b1326;color:var(--ink);border:1px solid #263041;border-radius:8px;padding:5px 8px}
+.tok{display:flex;gap:8px;margin:6px 0}.t{width:36px;height:36px;border-radius:999px;border:2px dashed #263041;display:grid;place-items:center;user-select:none}
+.t.m{border-color:var(--green)}.t.x{border-color:var(--red)}.t.arm{outline:2px solid #38bdf8}
+#court{width:100%;height:auto;border-radius:12px;border:1px solid var(--line);display:block;background:#060a13}
+.hint{color:var(--mut)}.backdrop{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none}.modal{position:fixed;inset:0;display:none;place-items:center}
+.card{background:#0b1326;border:1px solid var(--line);border-radius:12px;padding:10px;max-width:720px;width:92vw;max-height:86vh;overflow:auto}
+#shotMenu{position:absolute;display:none;z-index:5}</style></head>
+<body>
+<div class="top">
+  <button class="btn" id="navTrack">Tracker</button>
+  <button class="btn" id="navSched">Schedule</button>
+  <span style="flex:1"></span>
+  <button class="btn" id="btnInstall" style="display:none">Install App</button>
+  <button class="btn" id="btnReset">Reset</button>
+  <span class="pill">Shot Chart Studio — PWA</span>
+</div>
+
+<section id="pgTrack">
+  <div class="panel row" style="flex-wrap:wrap">
+    <button class="btn" id="btnRoster">Manage Roster</button>
+    <label class="row"><span class="hint">Game:</span>
+      <select id="gameSel" class="sel" style="max-width:260px"><option value="">— Select —</option></select>
+    </label>
+    <button class="btn" id="btnSave">Save</button>
+    <button class="btn" id="btnClear">Clear</button>
+    <span class="hint">Tap ●/✕ then tap court. Click a shot to remove.</span>
+  </div>
+  <div class="grid">
+    <div class="panel players"><h3 style="margin:6px 0 10px">On-Court (5)</h3><div id="five"></div></div>
+    <div class="panel">
+      <div class="row" style="margin-bottom:6px"><span class="hint">Court</span><span style="flex:1"></span>
+        <label class="hint">Rule:</label>
+        <select id="rule" class="sel" style="max-width:150px"><option value="hs">HS</option><option value="ncaa" selected>NCAA</option><option value="nba">NBA</option></select>
+      </div>
+      <div id="cWrap" style="position:relative">
+        <canvas id="court" width="820" height="520"></canvas>
+        <div id="shotMenu"><div class="card" style="padding:6px 8px"><button class="btn" id="rmShot">Remove</button></div></div>
+      </div>
+      <div class="row" style="margin-top:8px"><label class="hint">View:</label><select id="viewSel" class="sel" style="max-width:260px"></select></div>
+      <div class="row" style="margin-top:8px"><button class="btn" id="tabZones">Zones</button><button class="btn" id="tabLog">Shot Log</button></div>
+      <div id="zones"></div><div id="log" style="display:none"></div>
+    </div>
+  </div>
+</section>
+
+<section id="pgSched" style="display:none">
+  <div class="panel">
+    <div class="row" style="justify-content:space-between"><h3 style="margin:0">Schedule</h3><button class="btn" id="back">Back</button></div>
+    <div class="row" style="margin-top:6px;gap:6px;flex-wrap:wrap">
+      <input id="gName" class="inp" placeholder="Opponent / label" style="max-width:260px"/><input id="gDate" class="inp" type="date" style="max-width:160px"/><button class="btn" id="addGame">Add Game</button>
+    </div>
+    <div id="schedList" style="margin-top:8px"></div>
+  </div>
+</section>
+
+<div class="backdrop" id="roBack"></div>
+<div class="modal" id="roModal"><div class="card">
+  <div class="row" style="justify-content:space-between"><h3 style="margin:0">Roster</h3><div class="row"><button class="btn" id="addP">Add Player</button><button class="btn" id="doneP">Done</button></div></div>
+  <table><thead><tr><th>#</th><th>Name</th><th>Actions</th></tr></thead><tbody id="roBody"></tbody></table>
+</div></div>
+
+<script>"use strict";
+// PWA install 
+let deferredPrompt=null;
+window.addEventListener("beforeinstallprompt",(e)=>{e.preventDefault();deferredPrompt=e;const b=document.getElementById("btnInstall");if(b)b.style.display="inline-block";});
+document.getElementById("btnInstall").addEventListener("click",async()=>{if(!deferredPrompt)return;deferredPrompt.prompt();await deferredPrompt.userChoice;deferredPrompt=null;document.getElementById("btnInstall").style.display="none";});
+window.addEventListener("appinstalled",()=>{console.log("App installed");});
+if("serviceWorker" in navigator){window.addEventListener("load",()=>{navigator.serviceWorker.register("./sw.js").catch(console.error)})}
+
+// App code (minimal)
+const S={ro:[],on:[null,null,null,null,null],tap:null,sch:[],gd:{},cur:null,rule:"ncaa"};
+const C=[{k:"ast",l:"AST"},{k:"dreb",l:"DREB"},{k:"oreb",l:"OREB"},{k:"tov",l:"TOV"},{k:"stl",l:"STL"},{k:"blk",l:"BLK"},{k:"fta",l:"FTA"},{k:"ftm",l:"FTM"}];
+const $=id=>document.getElementById(id);
+const court=$("court"),ctx=court.getContext("2d"),cWrap=$("cWrap");
+const shotMenu=$("shotMenu"),rmShot=$("rmShot");
+const five=$("five"),zones=$("zones"),log=$("log");
+const rule=$("rule"),viewSel=$("viewSel");
+const btnRoster=$("btnRoster"),roBack=$("roBack"),roModal=$("roModal"),roBody=$("roBody"),addP=$("addP"),doneP=$("doneP");
+const btnClear=$("btnClear"),btnSave=$("btnSave"),gameSel=$("gameSel");
+const tabZones=$("tabZones"),tabLog=$("tabLog");
+const navTrack=$("navTrack"),navSched=$("navSched"),pgTrack=$("pgTrack"),pgSched=$("pgSched"),back=$("back");
+const gName=$("gName"),gDate=$("gDate"),addGame=$("addGame"),schedList=$("schedList");
+
+const uid=()=>Math.random().toString(36).slice(2,9);
+function save(){try{localStorage.setItem("scs_c",JSON.stringify(S));}catch(e){}}
+function load(){try{const s=localStorage.getItem("scs_c");if(s)Object.assign(S,JSON.parse(s));}catch(e){}}
+function esc(s){return(String(s||"")).replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;","&gt;":"&gt;",""":"&quot;","'":"&#39;"}[c]||c));}
+function ini(n){return(n||"").split(" ").map(x=>x[0]).join("").slice(0,2).toUpperCase()}
+function today(){return new Date().toISOString().slice(0,10)}
+function fmtDate(x){if(!x)return"";if(/^\d{4}-\d{2}-\d{2}$/.test(x))return x;try{return new Date(x).toISOString().slice(0,10)}catch(e){return x}}
+
+function M(){const W=court.width,H=court.height,mx=W/2,ry=H-90;const lw=W*0.28,lh=H*0.42,ft=ry-lh+10,R=lw*0.38;const rhs=(lh-10)+R;const SCALE={hs:1,ncaa:22.146/19.75,nba:23.75/19.75};const r3=rhs*(SCALE[S.rule||"ncaa"]||1);const co={hs:H*0.205,ncaa:H*0.235,nba:H*0.26}[S.rule||"ncaa"];return{W,H,mx,ry,r3,co,lw,lh,ft,R}}
+const is3=(x,y)=>{const m=M();return Math.hypot(x-m.mx,y-m.ry)>m.r3};
+function zone(x,y,t){const m=M();if(t){const cy=m.ry-m.co;return y>cy?(x<m.mx?"Left Corner 3":"Right Corner 3"):"Above Break 3"}const inP=(x>m.mx-m.lw/2&&x<m.mx+m.lw/2&&y>m.ry-m.lh&&y<m.ry+2);if(inP)return"Paint";if(x<m.mx-m.lw/2)return"Mid Left";if(x>m.mx+m.lw/2)return"Mid Right";return"Mid Center"}
+
+const getP=id=>S.ro.find(p=>p.id===id);
+const ensureP=p=>{p.stats=p.stats||{ast:0,dreb:0,oreb:0,tov:0,stl:0,blk:0,fta:0,ftm:0,_pts:0};p.shots=p.shots||[];return p};
+function setSlot(i,id){S.on[i]=id||null;save();render()}
+function adj(pid,k,d){const p=getP(pid);if(!p)return;ensureP(p);p.stats[k]=Math.max(0,(p.stats[k]||0)+d);if(k==="ftm"){p.stats._pts+=d;if(p.stats._pts<0)p.stats._pts=0}save();render()}
+function comp(p){ensureP(p);const sh=p.shots||[];const m=sh.filter(s=>s.make).length,a=sh.length;return{m,a,pts:(p.stats._pts||0)}}
+
+function renderSlots(){
+  five.innerHTML="";
+  for(let i=0;i<5;i++){
+    const id=S.on[i],p=id?getP(id):null;if(p)ensureP(p);
+    const s=document.createElement("div");s.className="slot";
+    const h=document.createElement("div");h.className="slotHead";
+    const av=document.createElement("div");av.className="avatar";av.textContent=p?ini(p.name):"—";
+    const meta=document.createElement("div");meta.style.flex="1";
+    const t=document.createElement("div");t.style.fontWeight="700";t.textContent=p?`${p.name}${p.number?" #"+p.number:""}`:"Select player";
+    const sub=document.createElement("div");sub.className="hint";if(p){const st=comp(p);sub.textContent=`PTS ${st.pts} • FG ${st.m}/${st.a}` }
+    meta.append(t,sub);
+    const sel=document.createElement("select");sel.className="sel";
+    sel.innerHTML='<option value="">— choose —</option>'+S.ro.map(r=>`<option value="${r.id}" ${r.id===id?"selected":""}>${esc(r.name)}${r.number?" #"+r.number:""}</option>`).join("");
+    sel.onchange=()=>setSlot(i,sel.value||null);
+    h.append(av,meta);s.append(h,sel);
+    const tk=document.createElement("div");tk.className="tok";
+    const tm=document.createElement("div");tm.className="t m";tm.textContent="●";
+    const tx=document.createElement("div");tx.className="t x";tx.textContent="✕";
+    if(p){tm.onclick=()=>arm(p.id,"make",tm);tx.onclick=()=>arm(p.id,"miss",tx)} else { tm.style.opacity=tx.style.opacity="0.5" }
+    tk.append(tm,tx);s.append(tk);
+    const chips=document.createElement("div");chips.style.display="grid";chips.style.gridTemplateColumns="repeat(2,1fr)";chips.style.gap="6px";
+    if(p){for(const c of C){const ch=document.createElement("div");ch.className="row";ch.style.justifyContent="space-between";ch.style.background="#0c1428";ch.style.border="1px solid #202a3b";ch.style.borderRadius="8px";ch.style.padding="4px 6px";
+      const lab=document.createElement("span");lab.textContent=`${c.l}: ${p.stats[c.k]||0}`;
+      const m=document.createElement("button");m.textContent="−";m.onclick=()=>adj(p.id,c.k,-1);
+      const pl=document.createElement("button");pl.textContent="+";pl.onclick=()=>adj(p.id,c.k,1);
+      ch.append(lab,m,pl);chips.append(ch)}}
+    s.append(chips);five.append(s)
+  }
+  viewSel.innerHTML='<option value="on5">On-court 5</option><option value="team">Team</option>'+S.ro.map(r=>`<option value="p:${r.id}">${esc(r.name)}${r.number?" #"+r.number:""}</option>`).join("");
+}
+function arm(pid,type,el){S.tap={pid,type};document.querySelectorAll(".t").forEach(e=>e.classList.remove("arm"));el.classList.add("arm")}
+
+let hits=[],selShot=null;
+function drawCourt(){
+  const m=M(),css=getComputedStyle(document.documentElement);
+  ctx.clearRect(0,0,m.W,m.H);
+  ctx.fillStyle="#060a13";ctx.fillRect(0,0,m.W,m.H);
+  ctx.strokeStyle="#1f2937";ctx.lineWidth=2;ctx.strokeRect(8,8,m.W-16,m.H-16);
+  ctx.fillStyle="rgba(255,255,255,.03)";ctx.fillRect(m.mx-m.lw/2,m.ry-m.lh,m.lw,m.lh);
+  ctx.strokeStyle="#1f2937";ctx.strokeRect(m.mx-m.lw/2,m.ry-m.lh,m.lw,m.lh);
+  ctx.beginPath();ctx.arc(m.mx,m.ft,m.lw*0.38,0,Math.PI,true);ctx.stroke();
+  ctx.beginPath();ctx.arc(m.mx,m.ry,7,0,Math.PI*2);ctx.strokeStyle=css.getPropertyValue("--accent")||"#f97316";ctx.lineWidth=3;ctx.stroke();
+  ctx.lineWidth=2;ctx.strokeStyle="#1f2937";ctx.beginPath();ctx.moveTo(m.mx-30,m.ry+10);ctx.lineTo(m.mx+30,m.ry+10);ctx.stroke();
+  ctx.beginPath();ctx.strokeStyle=css.getPropertyValue("--blue")||"#38bdf8";const cy=m.ry-m.co;ctx.moveTo(30,cy);ctx.lineTo(30,m.H-8);ctx.moveTo(m.W-30,cy);ctx.lineTo(m.W-30,m.H-8);ctx.stroke();
+  ctx.save();ctx.strokeStyle=css.getPropertyValue("--blue")||"#38bdf8";ctx.lineWidth=Math.max(2.5,3*(m.W/820));ctx.lineCap="round";
+  const a=Math.asin(Math.min(1,m.co/Math.max(1,m.r3)));
+  ctx.beginPath();ctx.arc(m.mx,m.ry,m.r3,Math.PI+a,-Math.PI/2,true);ctx.stroke();
+  ctx.beginPath();ctx.arc(m.mx,m.ry,m.r3,-Math.PI/2,-a,true);ctx.stroke();
+  ctx.restore();
+}
+function pickList(){hits.length=0;const v=viewSel.value,arr=[];if(v==="on5"){const seen=new Set();for(const id of S.on){if(id&&!seen.has(id)){const p=getP(id);if(p){ensureP(p);arr.push(p);seen.add(id)}}}}else if(v==="team"){for(const p of S.ro){ensureP(p);arr.push(p)}}else if(v&&v.startsWith("p:")){const p=getP(v.slice(2));if(p){ensureP(p);arr.push(p)}}return arr}
+function drawShots(){const css=getComputedStyle(document.documentElement);const arr=pickList();for(const p of arr){for(let i=0;i<p.shots.length;i++){const s=p.shots[i];if(s.make){ctx.fillStyle=css.getPropertyValue("--green")||"#22c55e";ctx.beginPath();ctx.arc(s.x,s.y,6,0,Math.PI*2);ctx.fill()}else{ctx.strokeStyle=css.getPropertyValue("--red")||"#ef4444";ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(s.x-6,s.y-6);ctx.lineTo(s.x+6,s.y+6);ctx.moveTo(s.x+6,s.y-6);ctx.lineTo(s.x-6,s.y+6);ctx.stroke();ctx.lineWidth=2}hits.push({pid:p.id,i,x:s.x,y:s.y})}}}
+const renderCourt=()=>{drawCourt();drawShots()};function hideMenu(){shotMenu.style.display="none";selShot=null}
+court.addEventListener("pointerup",e=>{const r=court.getBoundingClientRect();const x=(e.clientX-r.left)*(court.width/r.width);const y=(e.clientY-r.top)*(court.height/r.height);
+  if(S.tap){addShot(S.tap.pid,x,y,S.tap.type==="make");S.tap=null;document.querySelectorAll(".t").forEach(t=>t.classList.remove("arm"));return}
+  let best=null,dB=12;for(const h of hits){const dist=Math.hypot(h.x-x,h.y-y);if(dist<dB){best=h;dB=dist}}
+  if(best){selShot=best;const wr=cWrap.getBoundingClientRect();shotMenu.style.left=(e.clientX-wr.left+8)+"px";shotMenu.style.top=(e.clientY-wr.top+8)+"px";shotMenu.style.display="block"}else hideMenu()
+});
+rmShot.onclick=()=>{if(selShot)remShot(selShot.pid,selShot.i)};
+document.addEventListener("click",e=>{if(!shotMenu.contains(e.target)&&e.target!==court)hideMenu()},{capture:true});
+
+function zonesTbl(map){const all=["Paint","Mid Left","Mid Center","Mid Right","Left Corner 3","Above Break 3","Right Corner 3"];let M=0,A=0,h='<table><tr><th>Zone</th><th>M</th><th>A</th><th>FG%</th></tr>';for(const z of all){const d=map[z]||{m:0,a:0};const pct=d.a?Math.round(d.m/d.a*100):0;M+=d.m;A+=d.a;h+=`<tr><td>${z}</td><td>${d.m}</td><td>${d.a}</td><td>${pct}%</td></tr>`}const tp=A?Math.round(M/A*100):0;h+=`<tr><th>Total</th><th>${M}</th><th>${A}</th><th>${tp}%</th></tr></table>`;return h}
+function renderSide(){const v=viewSel.value;let map={},rows=[],tm=t=>new Date(t).toLocaleTimeString();
+  if(v==="on5"){const seen=new Set();for(const id of S.on){if(!id||seen.has(id))continue;const p=getP(id);if(!p)continue;for(const s of p.shots){const z=s.zone;map[z]=map[z]||{m:0,a:0};map[z].a++;if(s.make)map[z].m++;rows.push(`<div class="pill">${esc(p.name)} — ${tm(s.t)} — ${s.make?"Make":"Miss"} ${s.three?"3PT":"2PT"} — ${s.zone}</div>`)}seen.add(id)}}
+  else if(v==="team"){for(const p of S.ro){for(const s of(p.shots||[])){const z=s.zone;map[z]=map[z]||{m:0,a:0};map[z].a++;if(s.make)map[z].m++;rows.push(`<div class="pill">${esc(p.name)} — ${tm(s.t)} — ${s.make?"Make":"Miss"} ${s.three?"3PT":"2PT"} — ${s.zone}</div>`)}}}
+  else if(v&&v.startsWith("p:")){const p=getP(v.slice(2));if(p){for(const s of p.shots){const z=s.zone;map[z]=map[z]||{m:0,a:0};map[z].a++;if(s.make)map[z].m++;rows.push(`<div class="pill">${tm(s.t)} — ${s.make?"Make":"Miss"} ${s.three?"3PT":"2PT"} — ${s.zone}</div>`)}}}
+  zones.innerHTML=zonesTbl(map);log.innerHTML=rows.reverse().join("")||'<div class="pill">No shots yet.</div>';
+}
+
+function addShot(pid,x,y,mk){const p=getP(pid);if(!p)return;ensureP(p);const t=is3(x,y),z=zone(x,y,t);p.shots.push({x,y,make:mk,three:t,zone:z,t:Date.now()});if(mk)p.stats._pts+=t?3:2;save();render()}
+function remShot(pid,i){const p=getP(pid);if(!p)return;const s=p.shots[i];if(!s)return;if(s.make){p.stats._pts-=s.three?3:2;if(p.stats._pts<0)p.stats._pts=0}p.shots.splice(i,1);save();hideMenu();render()}
+
+function clearCur(){for(const r of S.ro){r.shots=[];r.stats={ast:0,dreb:0,oreb:0,tov:0,stl:0,blk:0,fta:0,ftm:0,_pts:0}}saveCur();save();render()}
+btnClear.onclick=clearCur;
+const deep=o=>JSON.parse(JSON.stringify(o));
+function snap(){const d={};for(const r of S.ro){d[r.id]={name:r.name,number:r.number,shots:deep(r.shots||[]),stats:deep(r.stats||{})}}return d}
+function saveCur(){const id=S.cur;if(!id)return;const g=S.sch.find(x=>x.id===id);if(!g)return;S.gd[id]={name:g.name,date:g.date,data:snap(),on:S.on.slice()};save()}
+function loadGame(id){const gd=S.gd[id];for(const r of S.ro){const row=(gd&&gd.data)?gd.data[r.id]:null;if(row){r.shots=deep(row.shots||[]);r.stats=Object.assign({ast:0,dreb:0,oreb:0,tov:0,stl:0,blk:0,fta:0,ftm:0,_pts:0},deep(row.stats||{}))}else{r.shots=[];r.stats={ast:0,dreb:0,oreb:0,tov:0,stl:0,blk:0,fta:0,ftm:0,_pts:0}}}
+  if(gd&&Array.isArray(gd.on))S.on=gd.on.slice();save();render()}
+function switchGame(id){saveCur();S.cur=id;loadGame(id);gamesDD();schedRender()}
+gameSel.onchange=()=>switchGame(gameSel.value||null);
+btnSave.onclick=()=>{saveCur();alert("Saved to game.")}
+
+function gamesDD(){gameSel.innerHTML='<option value="">— Select —</option>'+S.sch.map(g=>`<option value="${g.id}" ${g.id===S.cur?"selected":""}>${esc(g.name)} — ${fmtDate(g.date)}</option>`).join("")}
+function schedRender(){
+  schedList.innerHTML="";
+  if(S.sch.length===0){schedList.innerHTML='<div class="pill">No games yet.</div>';return}
+  S.sch.forEach((g,idx)=>{
+    const row=document.createElement("div");row.className="row";row.style.flexWrap="wrap";
+    const tag=document.createElement("div");tag.className="pill";tag.textContent=`${g.name} — ${fmtDate(g.date)}`;
+    const editBtn=document.createElement("button");editBtn.className="btn";editBtn.textContent="Edit";
+    const delBtn=document.createElement("button");delBtn.className="btn";delBtn.textContent="Delete";
+    editBtn.onclick=()=>{
+      row.innerHTML="";
+      const nameIn=document.createElement("input");nameIn.className="inp";nameIn.style.maxWidth="220px";nameIn.value=g.name;
+      const dateIn=document.createElement("input");dateIn.className="inp";dateIn.type="date";dateIn.value=fmtDate(g.date)||"";
+      const saveBtn=document.createElement("button");saveBtn.className="btn";saveBtn.textContent="Save";
+      const cancelBtn=document.createElement("button");cancelBtn.className="btn";cancelBtn.textContent="Cancel";
+      saveBtn.onclick=()=>{g.name=(nameIn.value||"").trim()||g.name;g.date=dateIn.value||g.date;if(S.gd[g.id]){S.gd[g.id].name=g.name;S.gd[g.id].date=g.date}save();schedRender();gamesDD()};
+      cancelBtn.onclick=()=>schedRender();
+      row.append(nameIn,dateIn,saveBtn,cancelBtn)
+    };
+    delBtn.onclick=()=>{
+      row.innerHTML="";
+      const msg=document.createElement("div");msg.className="pill";msg.textContent=`Delete ${g.name} — ${fmtDate(g.date)}?`;
+      const yes=document.createElement("button");yes.className="btn";yes.textContent="Yes, delete";
+      const no=document.createElement("button");no.className="btn";no.textContent="Cancel";
+      yes.onclick=()=>{delete S.gd[g.id];S.sch.splice(idx,1);if(S.cur===g.id){S.cur=S.sch[0]?.id||null;if(S.cur)loadGame(S.cur)}save();schedRender();gamesDD()};
+      no.onclick=()=>schedRender();
+      row.append(msg,yes,no)
+    };
+    row.append(tag,editBtn,delBtn);schedList.append(row)
+  })
+}
+addGame.onclick=()=>{const name=(gName.value||"").trim();if(!name)return;const dt=gDate.value||today();const id=uid();S.sch.push({id,name,date:dt});if(!S.cur)S.cur=id;save();gName.value="";schedRender();gamesDD()};
+
+function roRender(){
+  roBody.innerHTML="";
+  S.ro.forEach(p=>{
+    const tr=document.createElement("tr");
+    const td1=document.createElement("td");const num=document.createElement("input");num.className="inp";num.value=p.number||"";num.maxLength=4;num.oninput=()=>{p.number=num.value;save();render()};td1.append(num);
+    const td2=document.createElement("td");const nm=document.createElement("input");nm.className="inp";nm.value=p.name||"";nm.oninput=()=>{p.name=nm.value;save();render()};td2.append(nm);
+    const td3=document.createElement("td");const del=document.createElement("button");del.className="btn";del.textContent="Delete";del.onclick=()=>{S.ro=S.ro.filter(r=>r.id!==p.id);S.on=S.on.map(x=>x===p.id?null:x);save();roRender();render()};td3.append(del);
+    tr.append(td1,td2,td3);roBody.append(tr)
+  })
+}
+function roOpen(){roBack.style.display="block";roModal.style.display="grid";roRender()}
+function roClose(){roBack.style.display="none";roModal.style.display="none";render()}
+btnRoster.onclick=roOpen;roBack.onclick=roClose;doneP.onclick=roClose;
+addP.onclick=()=>{if(S.ro.length>=15){alert("Max 15 players");return}S.ro.push({id:uid(),name:"",number:"",stats:{ast:0,dreb:0,oreb:0,tov:0,stl:0,blk:0,fta:0,ftm:0,_pts:0},shots:[]});save();roRender()};
+
+tabZones.onclick=()=>{zones.style.display="block";log.style.display="none"};
+tabLog.onclick=()=>{zones.style.display="none";log.style.display="block"};
+navTrack.onclick=()=>{pgTrack.style.display="block";pgSched.style.display="none"};
+navSched.onclick=()=>{pgTrack.style.display="none";pgSched.style.display="block";schedRender()};
+back.onclick=()=>navTrack.click();
+rule.onchange=()=>{S.rule=rule.value;save();renderCourt()};
+viewSel.onchange=()=>{renderCourt();renderSide()};
+
+function size(){const dpr=window.devicePixelRatio||1;const rect=court.getBoundingClientRect();const w=Math.max(420,rect.width);const r=520/820;court.width=Math.round(w*dpr);court.height=Math.round(w*r*dpr);renderCourt()}
+window.addEventListener("resize",size);
+
+function ensureDefaults(){
+  if(!Array.isArray(S.ro)||S.ro.length===0){
+    S.ro=["Player 1","Player 2","Player 3","Player 4","Player 5"].map(n=>({id:uid(),name:n,number:"",stats:{ast:0,dreb:0,oreb:0,tov:0,stl:0,blk:0,fta:0,ftm:0,_pts:0},shots:[]}));
+    S.on=S.ro.slice(0,5).map(r=>r.id)
+  }
+  if(!Array.isArray(S.sch)||S.sch.length===0){
+    const id=uid();S.sch=[{id,name:"Game 1",date:today()}];S.cur=id
+  }
+}
+function render(){renderSlots();renderCourt();renderSide()}
+function boot(){load();ensureDefaults();rule.value=S.rule||"ncaa";gamesDD();size();if(S.cur)loadGame(S.cur);else render();save()}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",boot)}else{boot()}
+
+document.getElementById("btnReset").onclick=()=>{if(confirm("Reset local data and reload?")){localStorage.removeItem("scs_c");location.reload()}};
+</script>
+</body></html>
